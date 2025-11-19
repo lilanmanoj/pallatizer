@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
 // Pins of the Stepper Motors
@@ -120,12 +121,15 @@ void setup() {
     // Initialize serial for debugging
     Serial.begin(115200);
 
-    // Initialize the LCD
+    // Initialize I2C with custom pins
+    // SDA = GPIO1, SCL = GPIO2
+    Wire.begin(1, 2);
     lcd.init();
     lcd.backlight();
 }
 
 void loop() {
+    lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Working...");
     lcd.setCursor(0, 1);
