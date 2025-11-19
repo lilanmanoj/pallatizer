@@ -126,10 +126,10 @@ void setup() {
     Wire.begin(1, 2);
     lcd.init();
     lcd.backlight();
+    lcd.clear();
 }
 
 void loop() {
-    lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Working...");
     lcd.setCursor(0, 1);
