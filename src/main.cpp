@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
 
 // Pins of the Stepper Motors
@@ -9,10 +10,10 @@
 #define MOTOR3_DIR_PIN  47
 
 // Sensor pin to detect the presence of a box
-#define boxSensor  40
+#define BOX_SENSOR 40
 
 // Sensor to detect the presence of a pallet
-#define palletSensor 39
+#define PALLET_SENSOR 39
 
 // ESTOP Switch
 #define ESTOP_SW 21
@@ -24,7 +25,7 @@
 #define START_SW 19
 
 // Vacuum Pump Relay Pin
-#define pumpRelay 48
+#define PUMP_RELAY 48
 
 // Limit Switch Pins 
 #define L1 4
@@ -38,58 +39,88 @@
 #define STEPS_PER_REV 200
 
 // Counter for the number of boxes processed
-int boxCounter = 0;
+uint8_t boxCounter = 0;
 
 // Rotation values for each box in an array:
 // Format: rotations[box][motor] where motor = 0: motor1, 1: motor2, 2: motor3
 int rotations[12][3] = {
-  {5, 4, 7}, // 1st box
-  {4, 4, 7}, // 2nd box
-  {3, 4, 7}, // 3rd box
-  {5, 3, 7}, // 4th box
-  {4, 3, 7}, // 5th box
-  {3, 3, 5}, // 6th box
-  {5, 4, 5}, // 7th box
-  {4, 4, 5}, // 8th box
-  {3, 4, 5}, // 9th box
-  {5, 3, 5}, // 10th box
-  {4, 3, 5}, // 11th box
-  {3, 3, 5}  // 12th box
+    {5, 4, 7}, // 1st box
+    {4, 4, 7}, // 2nd box
+    {3, 4, 7}, // 3rd box
+    {5, 3, 7}, // 4th box
+    {4, 3, 7}, // 5th box
+    {3, 3, 5}, // 6th box
+    {5, 4, 5}, // 7th box
+    {4, 4, 5}, // 8th box
+    {3, 4, 5}, // 9th box
+    {5, 3, 5}, // 10th box
+    {4, 3, 5}, // 11th box
+    {3, 3, 5}  // 12th box
 };
 
+// Function to rotate motor
+void rotateMotor(int stepPin, int dirPin, int rotations) {
+  // Set the direction of rotation
+  digitalWrite(dirPin, HIGH);  // Adjust HIGH/LOW for direction
+
+  // Perform the rotation
+  for (int i = 0; i < rotations * STEPS_PER_REV; i++) {
+    digitalWrite(stepPin, HIGH);
+    delayMicroseconds(1000);  // Adjust speed here
+    digitalWrite(stepPin, LOW);
+    delayMicroseconds(1000);  // Adjust speed here
+  }
+}
+
+// Function to return the motor to its initial position
+void returnToInitialPosition(int stepPin, int dirPin, int rotations) {
+  digitalWrite(dirPin, LOW);  // Reverse the direction for return
+
+  // Perform the return movement with the same number of rotations
+  for (int i = 0; i < rotations * STEPS_PER_REV; i++) {
+    digitalWrite(stepPin, HIGH);
+    delayMicroseconds(1000);  // Adjust speed here
+    digitalWrite(stepPin, LOW);
+    delayMicroseconds(1000);  // Adjust speed here
+  }
+}
+
 void setup() {
-  // Set pin modes
-  pinMode(MOTOR1_STEP_PIN, OUTPUT);
-  pinMode(MOTOR1_DIR_PIN, OUTPUT);
-  pinMode(MOTOR2_STEP_PIN, OUTPUT);
-  pinMode(MOTOR2_DIR_PIN, OUTPUT);
-  pinMode(MOTOR3_STEP_PIN, OUTPUT);
-  pinMode(MOTOR3_DIR_PIN, OUTPUT);
-  
-  // IR sensors pin mode
-  pinMode(boxSensor, INPUT);
-  pinMode(palletSensor, INPUT);
+    // Set pin modes
+    pinMode(MOTOR1_STEP_PIN, OUTPUT);
+    pinMode(MOTOR1_DIR_PIN, OUTPUT);
+    pinMode(MOTOR2_STEP_PIN, OUTPUT);
+    pinMode(MOTOR2_DIR_PIN, OUTPUT);
+    pinMode(MOTOR3_STEP_PIN, OUTPUT);
+    pinMode(MOTOR3_DIR_PIN, OUTPUT);
 
-  // Switches pin modes
-  pinMode(ESTOP_SW, INPUT_PULLUP);
-  pinMode(HOME_SW, INPUT_PULLUP);
-  pinMode(START_SW, INPUT_PULLUP);
+    // Pump relay pin mode
+    pinMode(PUMP_RELAY, OUTPUT);
 
-  //Limit switches pin mode
-  pinMode(L1, INPUT_PULLUP);
-  pinMode(L2, INPUT_PULLUP);
-  pinMode(L3, INPUT_PULLUP);
-  pinMode(L4, INPUT_PULLUP);
-  pinMode(L5, INPUT_PULLUP);
-  pinMode(L6, INPUT_PULLUP);
+    // IR sensors pin mode
+    pinMode(BOX_SENSOR, INPUT);
+    pinMode(PALLET_SENSOR, INPUT);
 
-  // Initialize serial for debugging
-  Serial.begin(115200);
+    // Switches pin modes
+    pinMode(ESTOP_SW, INPUT_PULLUP);
+    pinMode(HOME_SW, INPUT_PULLUP);
+    pinMode(START_SW, INPUT_PULLUP);
+
+    //Limit switches pin mode
+    pinMode(L1, INPUT_PULLUP);
+    pinMode(L2, INPUT_PULLUP);
+    pinMode(L3, INPUT_PULLUP);
+    pinMode(L4, INPUT_PULLUP);
+    pinMode(L5, INPUT_PULLUP);
+    pinMode(L6, INPUT_PULLUP);
+
+    // Initialize serial for debugging
+    Serial.begin(115200);
 }
 
 void loop() {
   // Check if the box is detected
-  if (digitalRead(boxSensor) == LOW) {  // If sensor detects the box
+  if (digitalRead(BOX_SENSOR) == LOW) {  // If sensor detects the box
     Serial.println("Box detected, starting the palletizer operation...");
 
     // Perform operations based on the number of boxes detected
@@ -97,7 +128,7 @@ void loop() {
       // Box picking up process
       rotateMotor(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, 10);
       rotateMotor(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, 8);
-      digitalWrite(pumpRelay, HIGH);
+      digitalWrite(PUMP_RELAY, HIGH);
       delay(500);
       returnToInitialPosition(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, 8);
       returnToInitialPosition(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, 10);
@@ -127,32 +158,5 @@ void loop() {
 
     // Delay before checking for the next box
     delay(500);
-  }
-}
-
-// Function to rotate motor
-void rotateMotor(int stepPin, int dirPin, int rotations) {
-  // Set the direction of rotation
-  digitalWrite(dirPin, HIGH);  // Adjust HIGH/LOW for direction
-
-  // Perform the rotation
-  for (int i = 0; i < rotations * STEPS_PER_REV; i++) {
-    digitalWrite(stepPin, HIGH);
-    delayMicroseconds(1000);  // Adjust speed here
-    digitalWrite(stepPin, LOW);
-    delayMicroseconds(1000);  // Adjust speed here
-  }
-}
-
-// Function to return the motor to its initial position
-void returnToInitialPosition(int stepPin, int dirPin, int rotations) {
-  digitalWrite(dirPin, LOW);  // Reverse the direction for return
-
-  // Perform the return movement with the same number of rotations
-  for (int i = 0; i < rotations * STEPS_PER_REV; i++) {
-    digitalWrite(stepPin, HIGH);
-    delayMicroseconds(1000);  // Adjust speed here
-    digitalWrite(stepPin, LOW);
-    delayMicroseconds(1000);  // Adjust speed here
   }
 }
