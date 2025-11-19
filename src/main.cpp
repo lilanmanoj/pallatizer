@@ -38,6 +38,9 @@
 // Number of steps per revolution 
 #define STEPS_PER_REV 200
 
+// Initialize the LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Set the LCD I2C address
+
 // Counter for the number of boxes processed
 uint8_t boxCounter = 0;
 
@@ -116,47 +119,61 @@ void setup() {
 
     // Initialize serial for debugging
     Serial.begin(115200);
+
+    // Initialize the LCD
+    lcd.init();
+    lcd.backlight();
 }
 
 void loop() {
-  // Check if the box is detected
-  if (digitalRead(BOX_SENSOR) == LOW) {  // If sensor detects the box
-    Serial.println("Box detected, starting the palletizer operation...");
+    lcd.setCursor(0, 0);
+    lcd.print("Working...");
+    lcd.setCursor(0, 1);
+    lcd.print("Boxes: ");
+    lcd.print(boxCounter);
 
-    // Perform operations based on the number of boxes detected
-    if (boxCounter < 12) {
-      // Box picking up process
-      rotateMotor(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, 10);
-      rotateMotor(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, 8);
-      digitalWrite(PUMP_RELAY, HIGH);
-      delay(500);
-      returnToInitialPosition(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, 8);
-      returnToInitialPosition(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, 10);
-      
-      // Get rotations for motor1, motor2, motor3 based on the current box count
-      int motor1Rotations = rotations[boxCounter][0];
-      int motor2Rotations = rotations[boxCounter][1];
-      int motor3Rotations = rotations[boxCounter][2];
+    // Check if the box is detected
+    if (digitalRead(BOX_SENSOR) == LOW) {  // If sensor detects the box
+        Serial.println("Box detected, starting the palletizer operation...");
 
-      // Rotate the motors based on the box count
-      rotateMotor(MOTOR1_STEP_PIN, MOTOR1_DIR_PIN, motor1Rotations);
-      rotateMotor(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, motor2Rotations);
-      rotateMotor(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, motor3Rotations);
+        // Perform operations based on the number of boxes detected
+        if (boxCounter < 12) {
+            // Box picking up process
+            rotateMotor(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, 10);
+            rotateMotor(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, 8);
+            digitalWrite(PUMP_RELAY, HIGH);
+            delay(500);
+            returnToInitialPosition(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, 8);
+            returnToInitialPosition(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, 10);
+            
+            // Get rotations for motor1, motor2, motor3 based on the current box count
+            int motor1Rotations = rotations[boxCounter][0];
+            int motor2Rotations = rotations[boxCounter][1];
+            int motor3Rotations = rotations[boxCounter][2];
 
-      // After the motors complete their rotations, return to initial positions
-      returnToInitialPosition(MOTOR1_STEP_PIN, MOTOR1_DIR_PIN, motor1Rotations);
-      returnToInitialPosition(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, motor2Rotations);
-      returnToInitialPosition(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, motor3Rotations);
+            // Rotate the motors based on the box count
+            rotateMotor(MOTOR1_STEP_PIN, MOTOR1_DIR_PIN, motor1Rotations);
+            rotateMotor(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, motor2Rotations);
+            rotateMotor(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, motor3Rotations);
 
-      // Increment the box counter
-      boxCounter++;
-      Serial.print("Box count: ");
-      Serial.println(boxCounter);
-    } else {
-      Serial.println("Maximum number of boxes detected.");
+            // Release the box
+            digitalWrite(PUMP_RELAY, LOW);
+            delay(500);
+
+            // After the motors complete their rotations, return to initial positions
+            returnToInitialPosition(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, motor3Rotations);
+            returnToInitialPosition(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, motor2Rotations);
+            returnToInitialPosition(MOTOR1_STEP_PIN, MOTOR1_DIR_PIN, motor1Rotations);
+
+            // Increment the box counter
+            boxCounter++;
+            Serial.print("Box count: ");
+            Serial.println(boxCounter);
+        } else {
+            Serial.println("Maximum number of boxes detected.");
+        }
+
+        // Delay before checking for the next box
+        delay(500);
     }
-
-    // Delay before checking for the next box
-    delay(500);
-  }
 }
