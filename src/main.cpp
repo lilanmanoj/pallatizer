@@ -47,12 +47,14 @@
 // Delays
 #define PUMP_DELAY 1000
 #define STEP_DELAY 1000
+#define PROG_LOOP_DELAY 500
 
 // Initialize the LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2); // Set the LCD I2C address
 
 volatile bool start = false;
 volatile bool estopped = false;
+volatile bool requestHome = false;
 uint8_t boxCounter = 0;
 
 // Rotation values for each box in an array:
@@ -79,6 +81,11 @@ void driveMotor(int stepPin, int dirPin, int rotations, bool reverse = false) {
 
   // Perform the rotation
   for (int i = 0; i < rotations * STEPS_PER_REV; i++) {
+    // If a homing request or estop was raised, abort the current motion
+    if (requestHome || estopped) {
+      return;
+    }
+
     digitalWrite(stepPin, HIGH);
     delayMicroseconds(STEP_DELAY);  // Adjust speed here
     digitalWrite(stepPin, LOW);
@@ -114,7 +121,7 @@ void IRAM_ATTR handleStartSw() {
 }
 
 void IRAM_ATTR handleHomeSw() {
-  goToHomePosition();
+  requestHome = true;
 }
 
 void IRAM_ATTR handleEstop() {
@@ -165,7 +172,10 @@ void setup() {
   Wire.begin(1, 2);
   lcd.init();
   lcd.backlight();
+
   lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Calibrating...");
 
   // Initially go to home position
   goToHomePosition();
@@ -197,21 +207,58 @@ void setup() {
 }
 
 void loop() {
+  lcd.clear();
   lcd.setCursor(0, 0);
+
+  if (requestHome) {
+    noInterrupts();
+    requestHome = false;
+    interrupts();
+    goToHomePosition();
+  }
 
   if (estopped) {
     lcd.print("E-stopped!");
+    start = false;
   } else {
     lcd.print("Press start!");
   }
 
   while (start) {
+    lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Waiting...");
+
+    if (requestHome) {
+      noInterrupts();
+      requestHome = false;
+      interrupts();
+      goToHomePosition();
+
+      continue;
+    }
+
+    if (estopped) {
+      break;
+    }
 
     boxCounter = 0;
 
     while (digitalRead(PALLET_SENSOR) == LOW) {
+      if (requestHome) {
+        noInterrupts();
+        requestHome = false;
+        interrupts();
+        goToHomePosition();
+
+        continue;
+      }
+
+      if (estopped) {
+        break;
+      }
+
+      lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("Working...");
       lcd.setCursor(0, 1);
@@ -249,4 +296,6 @@ void loop() {
       }
     }
   }
+
+  delay(PROG_LOOP_DELAY);
 }
