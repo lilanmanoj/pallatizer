@@ -33,14 +33,6 @@
 // Vacuum Pump Relay Pin
 #define PUMP_RELAY 48
 
-// Limit Switch Pins 
-#define L1 4
-#define L2 5
-#define L3 6
-#define L4 7
-#define L5 15
-#define L6 16
-
 // Number of steps per revolution 
 #define STEPS_PER_REV 200
 
@@ -81,11 +73,6 @@ void driveMotor(int stepPin, int dirPin, int rotations, bool reverse = false) {
 
   // Perform the rotation
   for (int i = 0; i < rotations * STEPS_PER_REV; i++) {
-    // If a homing request or estop was raised, abort the current motion
-    if (requestHome || estopped) {
-      return;
-    }
-
     digitalWrite(stepPin, HIGH);
     delayMicroseconds(STEP_DELAY);  // Adjust speed here
     digitalWrite(stepPin, LOW);
@@ -108,12 +95,12 @@ void goToHomePosition() {
 }
 
 void pickupTheBox() {
-  driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, 10);
-  driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 8);
+  driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, 10, true);
+  driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 10, true);
   digitalWrite(PUMP_RELAY, HIGH);
   delay(PUMP_DELAY);
-  driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 8, true);
-  driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, 10, true);
+  driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 10);
+  driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, 10);
 }
 
 void IRAM_ATTR handleStartSw() {
@@ -156,14 +143,6 @@ void setup() {
   pinMode(HOME_SW, INPUT_PULLUP);
   pinMode(START_SW, INPUT_PULLUP);
 
-  //Limit switches pin mode
-  pinMode(L1, INPUT_PULLUP);
-  pinMode(L2, INPUT_PULLUP);
-  pinMode(L3, INPUT_PULLUP);
-  pinMode(L4, INPUT_PULLUP);
-  pinMode(L5, INPUT_PULLUP);
-  pinMode(L6, INPUT_PULLUP);
-
   // Initialize serial for debugging
   Serial.begin(115200);
 
@@ -172,6 +151,7 @@ void setup() {
   Wire.begin(1, 2);
   lcd.init();
   lcd.backlight();
+  delay(100);
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -210,53 +190,53 @@ void loop() {
   lcd.clear();
   lcd.setCursor(0, 0);
 
-  if (requestHome) {
-    noInterrupts();
-    requestHome = false;
-    interrupts();
-    goToHomePosition();
-  }
+  // if (requestHome) {
+  //   noInterrupts();
+  //   requestHome = false;
+  //   interrupts();
+  //   goToHomePosition();
+  // }
 
-  if (estopped) {
-    lcd.print("E-stopped!");
-    start = false;
-  } else {
-    lcd.print("Press start!");
-  }
+  // if (estopped) {
+  //   lcd.print("E-stopped!");
+  //   start = false;
+  // } else {
+  //   lcd.print("Press start!");
+  // }
 
   while (start) {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Waiting...");
 
-    if (requestHome) {
-      noInterrupts();
-      requestHome = false;
-      interrupts();
-      goToHomePosition();
+    // if (requestHome) {
+    //   noInterrupts();
+    //   requestHome = false;
+    //   interrupts();
+    //   goToHomePosition();
 
-      continue;
-    }
+    //   continue;
+    // }
 
-    if (estopped) {
-      break;
-    }
+    // if (estopped) {
+    //   break;
+    // }
 
     boxCounter = 0;
 
     while (digitalRead(PALLET_SENSOR) == LOW) {
-      if (requestHome) {
-        noInterrupts();
-        requestHome = false;
-        interrupts();
-        goToHomePosition();
+      // if (requestHome) {
+      //   noInterrupts();
+      //   requestHome = false;
+      //   interrupts();
+      //   goToHomePosition();
 
-        continue;
-      }
+      //   continue;
+      // }
 
-      if (estopped) {
-        break;
-      }
+      // if (estopped) {
+      //   break;
+      // }
 
       lcd.clear();
       lcd.setCursor(0, 0);
@@ -277,18 +257,18 @@ void loop() {
           int motor3Rotations = rotations[boxCounter][2];
 
           // Rotate the motors based on the box count
-          driveMotor(MOTOR_X_STEP_PIN, MOTOR_X_DIR_PIN, motor1Rotations);
-          driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, motor2Rotations);
-          driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, motor3Rotations);
+          driveMotor(MOTOR_X_STEP_PIN, MOTOR_X_DIR_PIN, motor1Rotations, true);
+          driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, motor2Rotations, true);
+          driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, motor3Rotations, true);
 
           // Release the box
           digitalWrite(PUMP_RELAY, LOW);
           delay(PUMP_DELAY);
 
           // After the motors complete their rotations, return to initial positions
-          driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, motor3Rotations, true);
-          driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, motor2Rotations, true);
-          driveMotor(MOTOR_X_STEP_PIN, MOTOR_X_DIR_PIN, motor1Rotations, true);
+          driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, motor3Rotations);
+          driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, motor2Rotations);
+          driveMotor(MOTOR_X_STEP_PIN, MOTOR_X_DIR_PIN, motor1Rotations);
 
           // Increment the box counter
           boxCounter++;
