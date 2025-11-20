@@ -51,11 +51,11 @@ int boxCounter = 0;
 
 // Rotation values for each box in an array:
 // Format: rotations[box][motor] where motor = 0: motor1, 1: motor2, 2: motor3
-const int rotations[8][3] = {
+const int rotations[6][3] = {
     {23, 10, 10}, // 1st box
     {14, 10, 10}, // 2nd box
-    {23, 3, 10}, // 3rd box
-    {14, 3, 10}, // 4th box
+    // {23, 3, 10}, // 3rd box
+    // {14, 3, 10}, // 4th box
     {23, 10, 2}, // 5th box
     {14, 10, 2}, // 6th box
     {23, 2, 2}, // 7th box
@@ -244,7 +244,7 @@ void loop() {
       if (digitalRead(BOX_SENSOR) == LOW) {
         goToHomePosition();
 
-        if (boxCounter < 8) {
+        if (boxCounter < 6) {
           pickupTheBox();
 
           // Get rotations for motor1, motor2, motor3 based on the current box count
