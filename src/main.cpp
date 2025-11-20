@@ -47,23 +47,19 @@ LiquidCrystal_I2C lcd(0x27, 16, 2); // Set the LCD I2C address
 volatile bool start = false;
 volatile bool estopped = false;
 volatile bool requestHome = false;
-uint8_t boxCounter = 0;
+int boxCounter = 0;
 
 // Rotation values for each box in an array:
 // Format: rotations[box][motor] where motor = 0: motor1, 1: motor2, 2: motor3
-int rotations[12][3] = {
-    {5, 4, 7}, // 1st box
-    {4, 4, 7}, // 2nd box
-    {3, 4, 7}, // 3rd box
-    {5, 3, 7}, // 4th box
-    {4, 3, 7}, // 5th box
-    {3, 3, 5}, // 6th box
-    {5, 4, 5}, // 7th box
-    {4, 4, 5}, // 8th box
-    {3, 4, 5}, // 9th box
-    {5, 3, 5}, // 10th box
-    {4, 3, 5}, // 11th box
-    {3, 3, 5}  // 12th box
+const int rotations[8][3] = {
+    {23, 10, 10}, // 1st box
+    {14, 10, 10}, // 2nd box
+    {23, 3, 10}, // 3rd box
+    {14, 3, 10}, // 4th box
+    {23, 10, 2}, // 5th box
+    {14, 10, 2}, // 6th box
+    {23, 2, 2}, // 7th box
+    {14, 2, 2}, // 8th box
 };
 
 // Function to rotate motor
@@ -96,10 +92,10 @@ void goToHomePosition() {
 
 void pickupTheBox() {
   driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, 10, true);
-  driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 10, true);
+  driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 13, true);
   digitalWrite(PUMP_RELAY, HIGH);
   delay(PUMP_DELAY);
-  driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 10);
+  driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 13);
   driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, 10);
 }
 
@@ -197,12 +193,12 @@ void loop() {
   //   goToHomePosition();
   // }
 
-  // if (estopped) {
-  //   lcd.print("E-stopped!");
-  //   start = false;
-  // } else {
-  //   lcd.print("Press start!");
-  // }
+  if (estopped) {
+    lcd.print("E-stopped!");
+    start = false;
+  } else {
+    lcd.print("Press start!");
+  }
 
   while (start) {
     lcd.clear();
