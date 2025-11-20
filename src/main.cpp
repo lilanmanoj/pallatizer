@@ -3,18 +3,23 @@
 #include <LiquidCrystal_I2C.h>
 
 // Pins of the Stepper Motors
-#define MOTOR1_STEP_PIN 43
-#define MOTOR1_DIR_PIN  44
-#define MOTOR2_STEP_PIN 42
-#define MOTOR2_DIR_PIN  41
-#define MOTOR3_STEP_PIN 35
-#define MOTOR3_DIR_PIN  47
+#define MOTOR_X_STEP_PIN 43
+#define MOTOR_X_DIR_PIN  44
+#define MOTOR_Y_STEP_PIN 42
+#define MOTOR_Y_DIR_PIN  41
+#define MOTOR_Z_STEP_PIN 35
+#define MOTOR_Z_DIR_PIN  47
 
 // Sensor pin to detect the presence of a box
 #define BOX_SENSOR 40
 
 // Sensor to detect the presence of a pallet
 #define PALLET_SENSOR 39
+
+// Home position sensors
+#define HOME_SENSOR_X 38
+#define HOME_SENSOR_Y 37
+#define HOME_SENSOR_Z 36
 
 // ESTOP Switch
 #define ESTOP_SW 21
@@ -39,10 +44,15 @@
 // Number of steps per revolution 
 #define STEPS_PER_REV 200
 
+// Delays
+#define PUMP_DELAY 1000
+#define STEP_DELAY 1000
+
 // Initialize the LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2); // Set the LCD I2C address
 
-// Counter for the number of boxes processed
+volatile bool start = false;
+volatile bool estopped = false;
 uint8_t boxCounter = 0;
 
 // Rotation values for each box in an array:
@@ -63,121 +73,180 @@ int rotations[12][3] = {
 };
 
 // Function to rotate motor
-void rotateMotor(int stepPin, int dirPin, int rotations) {
+void driveMotor(int stepPin, int dirPin, int rotations, bool reverse = false) {
   // Set the direction of rotation
-  digitalWrite(dirPin, HIGH);  // Adjust HIGH/LOW for direction
+  digitalWrite(dirPin, reverse);  // Adjust HIGH/LOW for direction
 
   // Perform the rotation
   for (int i = 0; i < rotations * STEPS_PER_REV; i++) {
     digitalWrite(stepPin, HIGH);
-    delayMicroseconds(1000);  // Adjust speed here
+    delayMicroseconds(STEP_DELAY);  // Adjust speed here
     digitalWrite(stepPin, LOW);
-    delayMicroseconds(1000);  // Adjust speed here
+    delayMicroseconds(STEP_DELAY);  // Adjust speed here
   }
 }
 
-// Function to return the motor to its initial position
-void returnToInitialPosition(int stepPin, int dirPin, int rotations) {
-  digitalWrite(dirPin, LOW);  // Reverse the direction for return
-
-  // Perform the return movement with the same number of rotations
-  for (int i = 0; i < rotations * STEPS_PER_REV; i++) {
-    digitalWrite(stepPin, HIGH);
-    delayMicroseconds(1000);  // Adjust speed here
-    digitalWrite(stepPin, LOW);
-    delayMicroseconds(1000);  // Adjust speed here
+void goToHomePosition() {
+  while (digitalRead(HOME_SENSOR_X) == LOW) {
+    driveMotor(MOTOR_X_STEP_PIN, MOTOR_X_DIR_PIN, 1);
   }
+
+  while (digitalRead(HOME_SENSOR_Y) == LOW) {
+    driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, 1);
+  }
+
+  while (digitalRead(HOME_SENSOR_Z) == LOW) {
+    driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 1);
+  }
+}
+
+void pickupTheBox() {
+  driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, 10);
+  driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 8);
+  digitalWrite(PUMP_RELAY, HIGH);
+  delay(PUMP_DELAY);
+  driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, 8, true);
+  driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, 10, true);
+}
+
+void IRAM_ATTR handleStartSw() {
+  start = (estopped == false) ? true : false;
+}
+
+void IRAM_ATTR handleHomeSw() {
+  goToHomePosition();
+}
+
+void IRAM_ATTR handleEstop() {
+  estopped = true;
+}
+
+void IRAM_ATTR releaseEstop() {
+  estopped = false;
 }
 
 void setup() {
-    // Set pin modes
-    pinMode(MOTOR1_STEP_PIN, OUTPUT);
-    pinMode(MOTOR1_DIR_PIN, OUTPUT);
-    pinMode(MOTOR2_STEP_PIN, OUTPUT);
-    pinMode(MOTOR2_DIR_PIN, OUTPUT);
-    pinMode(MOTOR3_STEP_PIN, OUTPUT);
-    pinMode(MOTOR3_DIR_PIN, OUTPUT);
+  // Set pin modes
+  pinMode(MOTOR_X_STEP_PIN, OUTPUT);
+  pinMode(MOTOR_X_DIR_PIN, OUTPUT);
+  pinMode(MOTOR_Y_STEP_PIN, OUTPUT);
+  pinMode(MOTOR_Y_DIR_PIN, OUTPUT);
+  pinMode(MOTOR_Z_STEP_PIN, OUTPUT);
+  pinMode(MOTOR_Z_DIR_PIN, OUTPUT);
 
-    // Pump relay pin mode
-    pinMode(PUMP_RELAY, OUTPUT);
+  // Pump relay pin mode
+  pinMode(PUMP_RELAY, OUTPUT);
 
-    // IR sensors pin mode
-    pinMode(BOX_SENSOR, INPUT);
-    pinMode(PALLET_SENSOR, INPUT);
+  // IR sensors pin mode
+  pinMode(BOX_SENSOR, INPUT);
+  pinMode(PALLET_SENSOR, INPUT);
+  pinMode(HOME_SENSOR_X, INPUT);
+  pinMode(HOME_SENSOR_Y, INPUT);
+  pinMode(HOME_SENSOR_Z, INPUT);
 
-    // Switches pin modes
-    pinMode(ESTOP_SW, INPUT_PULLUP);
-    pinMode(HOME_SW, INPUT_PULLUP);
-    pinMode(START_SW, INPUT_PULLUP);
+  // Switches pin modes
+  pinMode(ESTOP_SW, INPUT_PULLUP);
+  pinMode(HOME_SW, INPUT_PULLUP);
+  pinMode(START_SW, INPUT_PULLUP);
 
-    //Limit switches pin mode
-    pinMode(L1, INPUT_PULLUP);
-    pinMode(L2, INPUT_PULLUP);
-    pinMode(L3, INPUT_PULLUP);
-    pinMode(L4, INPUT_PULLUP);
-    pinMode(L5, INPUT_PULLUP);
-    pinMode(L6, INPUT_PULLUP);
+  //Limit switches pin mode
+  pinMode(L1, INPUT_PULLUP);
+  pinMode(L2, INPUT_PULLUP);
+  pinMode(L3, INPUT_PULLUP);
+  pinMode(L4, INPUT_PULLUP);
+  pinMode(L5, INPUT_PULLUP);
+  pinMode(L6, INPUT_PULLUP);
 
-    // Initialize serial for debugging
-    Serial.begin(115200);
+  // Initialize serial for debugging
+  Serial.begin(115200);
 
-    // Initialize I2C with custom pins
-    // SDA = GPIO1, SCL = GPIO2
-    Wire.begin(1, 2);
-    lcd.init();
-    lcd.backlight();
-    lcd.clear();
+  // Initialize I2C with custom pins
+  // SDA = GPIO1, SCL = GPIO2
+  Wire.begin(1, 2);
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+
+  // Initially go to home position
+  goToHomePosition();
+
+  // Interrupt routines
+  attachInterrupt(
+    digitalPinToInterrupt(START_SW),
+    handleStartSw,
+    FALLING
+  );
+
+  attachInterrupt(
+    digitalPinToInterrupt(HOME_SW),
+    handleHomeSw,
+    FALLING
+  );
+
+  attachInterrupt(
+    digitalPinToInterrupt(ESTOP_SW),
+    handleEstop,
+    RISING
+  );
+
+  attachInterrupt(
+    digitalPinToInterrupt(ESTOP_SW),
+    releaseEstop,
+    FALLING
+  );
 }
 
 void loop() {
+  lcd.setCursor(0, 0);
+
+  if (estopped) {
+    lcd.print("E-stopped!");
+  } else {
+    lcd.print("Press start!");
+  }
+
+  while (start) {
     lcd.setCursor(0, 0);
-    lcd.print("Working...");
-    lcd.setCursor(0, 1);
-    lcd.print("Boxes: ");
-    lcd.print(boxCounter);
+    lcd.print("Waiting...");
 
-    // Check if the box is detected
-    if (digitalRead(BOX_SENSOR) == LOW) {  // If sensor detects the box
-        Serial.println("Box detected, starting the palletizer operation...");
+    boxCounter = 0;
 
-        // Perform operations based on the number of boxes detected
-        if (boxCounter < 12) {
-            // Box picking up process
-            rotateMotor(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, 10);
-            rotateMotor(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, 8);
-            digitalWrite(PUMP_RELAY, HIGH);
-            delay(500);
-            returnToInitialPosition(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, 8);
-            returnToInitialPosition(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, 10);
-            
-            // Get rotations for motor1, motor2, motor3 based on the current box count
-            int motor1Rotations = rotations[boxCounter][0];
-            int motor2Rotations = rotations[boxCounter][1];
-            int motor3Rotations = rotations[boxCounter][2];
+    while (digitalRead(PALLET_SENSOR) == LOW) {
+      lcd.setCursor(0, 0);
+      lcd.print("Working...");
+      lcd.setCursor(0, 1);
+      lcd.print("Boxes: ");
+      lcd.print(boxCounter);
 
-            // Rotate the motors based on the box count
-            rotateMotor(MOTOR1_STEP_PIN, MOTOR1_DIR_PIN, motor1Rotations);
-            rotateMotor(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, motor2Rotations);
-            rotateMotor(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, motor3Rotations);
+      if (digitalRead(BOX_SENSOR) == LOW) {
+        goToHomePosition();
 
-            // Release the box
-            digitalWrite(PUMP_RELAY, LOW);
-            delay(500);
+        if (boxCounter < 8) {
+          pickupTheBox();
 
-            // After the motors complete their rotations, return to initial positions
-            returnToInitialPosition(MOTOR3_STEP_PIN, MOTOR3_DIR_PIN, motor3Rotations);
-            returnToInitialPosition(MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, motor2Rotations);
-            returnToInitialPosition(MOTOR1_STEP_PIN, MOTOR1_DIR_PIN, motor1Rotations);
+          // Get rotations for motor1, motor2, motor3 based on the current box count
+          int motor1Rotations = rotations[boxCounter][0];
+          int motor2Rotations = rotations[boxCounter][1];
+          int motor3Rotations = rotations[boxCounter][2];
 
-            // Increment the box counter
-            boxCounter++;
-            Serial.print("Box count: ");
-            Serial.println(boxCounter);
-        } else {
-            Serial.println("Maximum number of boxes detected.");
+          // Rotate the motors based on the box count
+          driveMotor(MOTOR_X_STEP_PIN, MOTOR_X_DIR_PIN, motor1Rotations);
+          driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, motor2Rotations);
+          driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, motor3Rotations);
+
+          // Release the box
+          digitalWrite(PUMP_RELAY, LOW);
+          delay(PUMP_DELAY);
+
+          // After the motors complete their rotations, return to initial positions
+          driveMotor(MOTOR_Z_STEP_PIN, MOTOR_Z_DIR_PIN, motor3Rotations, true);
+          driveMotor(MOTOR_Y_STEP_PIN, MOTOR_Y_DIR_PIN, motor2Rotations, true);
+          driveMotor(MOTOR_X_STEP_PIN, MOTOR_X_DIR_PIN, motor1Rotations, true);
+
+          // Increment the box counter
+          boxCounter++;
         }
-
-        // Delay before checking for the next box
-        delay(500);
+      }
     }
+  }
 }
